@@ -37,8 +37,9 @@ namespace BlockchainObserver.Utils
                 HostName = HostName,
             };
 
-            connection = factory.CreateConnection();
-            channel = connection.CreateModel();
+            Connect(null,null);
+            connection.ConnectionShutdown += Connect;
+            channel.ModelShutdown += CreateChannel;
 
             properties = channel.CreateBasicProperties();
             properties.Persistent = true;
@@ -54,6 +55,18 @@ namespace BlockchainObserver.Utils
             String consumerTag = channel.BasicConsume(QueueIn, false, Consumer);
         }
 
+        private static void CreateChannel(object sender, ShutdownEventArgs e)
+        {
+            channel = connection.CreateModel();
+            System.Threading.Thread.Sleep(2500);
+        }
+
+        private static void Connect(object sender, ShutdownEventArgs e)
+        {
+            connection = factory.CreateConnection();
+            CreateChannel(null, null);
+            System.Threading.Thread.Sleep(2500);
+        }
 
         public static void Send(string message)
         {
