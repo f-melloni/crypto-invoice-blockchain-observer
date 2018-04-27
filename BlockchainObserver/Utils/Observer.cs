@@ -12,13 +12,14 @@ namespace BlockchainObserver.Utils
     public static class Observer
     {
         private static List<string> Addresses = new List<string>();
+        private static List<string> SeenAddresses = new List<string>();
         private static ICurrencyAdapter _currency;
         private static string HostName;
         private static string RpcUserName;
         private static string RpcPassword;
         private static int Port;
         private static int Interval;
-        private static int Confirmations;
+        private static int RequiredConfirmations;
 
         /// <summary>
         /// Gets the address parameter from the RabbitMQ message
@@ -54,11 +55,14 @@ namespace BlockchainObserver.Utils
 
         private static void OnPaymentSeen(string address)
         {
+            SeenAddresses.Add(address);
             RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentSeen\", \"params\": [{address}]}}");
         }
 
         private static void OnPaymentConfirmed(string address)
         {
+            Addresses.Remove(address);
+            SeenAddresses.Remove(address);
             RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentConfirmed\", \"params\": [{address}]}}");
         }
 
@@ -74,7 +78,7 @@ namespace BlockchainObserver.Utils
             _currency = (ICurrencyAdapter)Activator.CreateInstance(CurrencyAdapter.Types[currencyName], args);
 
             Interval = Convert.ToInt16(configuration["Observer:Interval"]);
-            Confirmations = Convert.ToInt16(configuration["Observer:Confirmations"]);
+            RequiredConfirmations = Convert.ToInt16(configuration["Observer:Confirmations"]);
             Begin();
         }
 
@@ -95,12 +99,15 @@ namespace BlockchainObserver.Utils
         {
             while (true)
             {
-                foreach (string address in Addresses)
+                //Copy of address list (in case of the main list changes)
+                List<string> addresses = new List<string>(Addresses);
+
+                foreach (string address in addresses)
                 {
                     int? confirmations = _currency.TransactionConfirmations(address);
-                    if (confirmations != null)
+                    if (confirmations != null && !SeenAddresses.Contains(address))
                         OnPaymentSeen(address);
-                    if (confirmations >= Confirmations)
+                    if (confirmations >= RequiredConfirmations)
                         OnPaymentConfirmed(address);
                 }
 
