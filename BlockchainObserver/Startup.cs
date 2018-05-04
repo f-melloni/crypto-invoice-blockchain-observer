@@ -18,11 +18,11 @@ namespace BlockchainObserver
     {
         public IConfiguration Configuration { get; }
 
-        public Startup(IConfiguration configuration)
+        public Startup(IConfiguration configuration, DBEntities db)
         {
             Configuration = configuration;
             RabbitMessenger.Setup(configuration);
-            Observer.Setup(configuration);
+            Observer.Setup(configuration, db);
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.

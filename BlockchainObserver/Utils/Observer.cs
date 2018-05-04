@@ -6,6 +6,9 @@ using Newtonsoft.Json.Linq;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using BlockchainObserver.Currencies;
+using Microsoft.EntityFrameworkCore;
+using BlockchainObserver.Database.Entities;
+using BlockchainObserver.Database;
 
 namespace BlockchainObserver.Utils
 {
@@ -14,6 +17,7 @@ namespace BlockchainObserver.Utils
         private static List<string> Addresses = new List<string>();
         private static List<string> SeenAddresses = new List<string>();
         private static ICurrencyAdapter _currency;
+        private static string CurrencyName;
         private static string HostName;
         private static string RpcUserName;
         private static string RpcPassword;
@@ -21,19 +25,28 @@ namespace BlockchainObserver.Utils
         private static int Interval;
         private static int RequiredConfirmations;
 
+        private static DBEntities db;
+
         /// <summary>
         /// Gets the address parameter from the RabbitMQ message
         /// </summary>
         /// <param name="message">JsonRPC consumer message</param>
         private static void AddAddress(JToken message)
         {
-            if(message["params"] is JObject)
+            if (message["params"] is JObject) {
                 Addresses.Add(message["params"].Value<string>());
-            else if(message["params"] is JArray)
-            {
-                foreach(var address in (JArray)message["params"])
-                {
+            }
+            else if (message["params"] is JArray) {
+                foreach (var address in (JArray)message["params"]) {
                     Addresses.Add(address.ToString());
+
+                    // Save to cache
+                    AddressCache item = new AddressCache() {
+                        Address = address.ToString(),
+                        Currency = CurrencyName
+                    };
+                    db.Addresses.Add(item);
+                    db.SaveChanges();
                 }
             }
         }
@@ -66,19 +79,24 @@ namespace BlockchainObserver.Utils
             RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentConfirmed\", \"params\": [{address}]}}");
         }
 
-        public static void Setup(IConfiguration configuration)
+        public static void Setup(IConfiguration configuration, DBEntities _db)
         {
-            string currencyName = configuration["Observer:Currency"].ToUpper();
+            CurrencyName = configuration["Observer:Currency"].ToUpper();
             HostName    = configuration["Observer:HostName"];
             Port        = Convert.ToInt16(configuration["Observer:Port"]);
             RpcUserName = configuration["Observer:RpcUserName"];
             RpcPassword = configuration["Observer:RpcPassword"];
+            db = _db;
 
             object[] args = { HostName, Port, RpcUserName, RpcPassword };
-            _currency = (ICurrencyAdapter)Activator.CreateInstance(CurrencyAdapter.Types[currencyName], args);
+            _currency = (ICurrencyAdapter)Activator.CreateInstance(CurrencyAdapter.Types[CurrencyName], args);
 
             Interval = Convert.ToInt16(configuration["Observer:Interval"]);
             RequiredConfirmations = Convert.ToInt16(configuration["Observer:Confirmations"]);
+
+            // Load from cache
+            Addresses = db.Addresses.Where(a => a.Currency == CurrencyName).Select(a => a.Address).ToList();
+
             Begin();
         }
 
