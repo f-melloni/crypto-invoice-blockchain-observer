@@ -9,13 +9,14 @@ using BlockchainObserver.Currencies;
 using Microsoft.EntityFrameworkCore;
 using BlockchainObserver.Database.Entities;
 using BlockchainObserver.Database;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace BlockchainObserver.Utils
 {
     public static class Observer
     {
         private static List<string> Addresses = new List<string>();
-        private static List<string> SeenAddresses = new List<string>();
+        private static Dictionary<string, string> SeenAddresses = new Dictionary<string, string>();
         private static ICurrencyAdapter _currency;
         private static string CurrencyName;
         private static string HostName;
@@ -25,7 +26,7 @@ namespace BlockchainObserver.Utils
         private static int Interval;
         private static int RequiredConfirmations;
 
-        private static DBEntities db;
+        public static DbContextOptionsBuilder<DBEntities> dbContextOptions = new DbContextOptionsBuilder<DBEntities>();
 
         /// <summary>
         /// Gets the address parameter from the RabbitMQ message
@@ -33,21 +34,30 @@ namespace BlockchainObserver.Utils
         /// <param name="message">JsonRPC consumer message</param>
         private static void AddAddress(JToken message)
         {
-            if (message["params"] is JObject) {
-                Addresses.Add(message["params"].Value<string>());
-            }
-            else if (message["params"] is JArray) {
-                foreach (var address in (JArray)message["params"]) {
-                    Addresses.Add(address.ToString());
+            using (DBEntities db = new DBEntities(dbContextOptions.Options)) {
+                if (message["params"] is JObject) {
+                    Addresses.Add(message["params"].Value<string>());
+                    _currency.ImportAddress(message["params"].Value<string>());
 
-                    // Save to cache
-                    AddressCache item = new AddressCache() {
-                        Address = address.ToString(),
+                    var addressCache = new AddressCache() {
+                        Address = message["params"].Value<string>(),
                         Currency = CurrencyName
                     };
-                    db.Addresses.Add(item);
-                    db.SaveChanges();
+                    db.Addresses.Add(addressCache);
                 }
+                else if (message["params"] is JArray) {
+                    foreach (var address in (JArray)message["params"]) {
+                        Addresses.Add(address.ToString());
+                        _currency.ImportAddress(address.ToString());
+
+                        var addressCache = new AddressCache() {
+                            Address = address.ToString(),
+                            Currency = CurrencyName
+                        };
+                        db.Addresses.Add(addressCache);
+                    }
+                }
+                db.SaveChanges();
             }
         }
 
@@ -66,9 +76,9 @@ namespace BlockchainObserver.Utils
             }
         }
 
-        private static void OnPaymentSeen(string address)
+        private static void OnPaymentSeen(string address, string txHash)
         {
-            SeenAddresses.Add(address);
+            SeenAddresses.Add(address, txHash);
             RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentSeen\", \"params\": [{address}]}}");
         }
 
@@ -79,16 +89,18 @@ namespace BlockchainObserver.Utils
             RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentConfirmed\", \"params\": [{address}]}}");
         }
 
-        public static void Setup(IConfiguration configuration, DBEntities _db)
+        public static void Setup(IConfiguration configuration)
         {
             CurrencyName = configuration["Observer:Currency"].ToUpper();
             HostName    = configuration["Observer:HostName"];
             Port        = Convert.ToInt16(configuration["Observer:Port"]);
             RpcUserName = configuration["Observer:RpcUserName"];
             RpcPassword = configuration["Observer:RpcPassword"];
-            db = _db;
 
-            object[] args = { HostName, Port, RpcUserName, RpcPassword };
+            dbContextOptions.UseMySql(configuration.GetConnectionString("DefaultConnection"));
+            DBEntities db = new DBEntities(dbContextOptions.Options);
+
+            object[] args = { HostName, Port, RpcUserName, RpcPassword, CurrencyName };
             _currency = (ICurrencyAdapter)Activator.CreateInstance(CurrencyAdapter.Types[CurrencyName], args);
 
             Interval = Convert.ToInt16(configuration["Observer:Interval"]);
@@ -119,14 +131,21 @@ namespace BlockchainObserver.Utils
             {
                 //Copy of address list (in case of the main list changes)
                 List<string> addresses = new List<string>(Addresses);
+                if (addresses.Count > 0) {
+                    JArray transactionList = _currency.GetLastTransactions();
 
-                foreach (string address in addresses)
-                {
-                    int? confirmations = _currency.TransactionConfirmations(address);
-                    if (confirmations != null && !SeenAddresses.Contains(address))
-                        OnPaymentSeen(address);
-                    if (confirmations >= RequiredConfirmations)
-                        OnPaymentConfirmed(address);
+                    if (transactionList.HasValues) {
+                        foreach (string address in addresses) {
+                            JToken tx = transactionList.FirstOrDefault(a => a["address"].ToString() == address);
+                            if (tx != null) {
+                                int? confirmations = _currency.TransactionConfirmations(tx);
+                                if (confirmations != null && !SeenAddresses.ContainsKey(address))
+                                    OnPaymentSeen(address, (string)tx["06bddf6fc95915adad123cb93c310f533efbba55d8bb8759cc426fdf7ad0ec4c"]);
+                                if (confirmations >= RequiredConfirmations)
+                                    OnPaymentConfirmed(address);
+                            }
+                        }
+                    }
                 }
 
                 Thread.Sleep(Interval);

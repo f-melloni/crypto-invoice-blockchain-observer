@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BlockchainObserver.Utils;
+using Newtonsoft.Json.Linq;
 
 namespace BlockchainObserver.Currencies
 {
@@ -37,6 +38,9 @@ namespace BlockchainObserver.Currencies
             client.Password = rpcPassword;
         }
 
-        public abstract int? TransactionConfirmations(string address);
+        public abstract int? TransactionConfirmations(JToken tx);
+        public abstract int? TransactionConfirmations(string txHash);
+        public abstract void ImportAddress(string address);
+        public abstract JArray GetLastTransactions();
     }
 }

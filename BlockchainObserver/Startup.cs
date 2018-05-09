@@ -11,6 +11,8 @@ using Microsoft.Extensions.Options;
 using BlockchainObserver.Utils;
 using Microsoft.EntityFrameworkCore;
 using BlockchainObserver.Database;
+using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 
 namespace BlockchainObserver
 {
@@ -18,11 +20,9 @@ namespace BlockchainObserver
     {
         public IConfiguration Configuration { get; }
 
-        public Startup(IConfiguration configuration, DBEntities db)
+        public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
-            RabbitMessenger.Setup(configuration);
-            Observer.Setup(configuration, db);
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
@@ -33,7 +33,7 @@ namespace BlockchainObserver
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IConfiguration configuration, DBEntities dBEntities)
         {
             if (env.IsDevelopment())
             {
@@ -41,6 +41,16 @@ namespace BlockchainObserver
             }
 
             app.UseMvc();
+
+            // Check if Starup is invoked by entityFramework and if so we can't continue because of infinite loop in Observer
+            StackTrace stackTrace = new StackTrace();
+            List<string> efMethods = new List<string>() { "RemoveMigration", "AddMigration", "UpdateDatabase" };
+            if (stackTrace.GetFrames().Any(f => efMethods.Contains(f.GetMethod().Name))) {
+                return;
+            }
+            
+            RabbitMessenger.Setup(configuration);
+            Observer.Setup(configuration);
         }
     }
 }

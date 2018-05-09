@@ -25,7 +25,7 @@ namespace BlockchainObserver.Database
         
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<TransactionCache>().HasIndex(t => t.Address);
+            modelBuilder.Entity<TransactionCache>().HasIndex(t => t.Currency);
 
             base.OnModelCreating(modelBuilder);
         }

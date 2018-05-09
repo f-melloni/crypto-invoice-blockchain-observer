@@ -7,7 +7,7 @@ namespace BlockchainObserver.Currencies
 {
     public class LitecoinAdapter : BitcoinBasedCurrencyAdapter
     {
-        public LitecoinAdapter(string IP, int port, string rpcUser, string rpcPassword) : base(IP, port, rpcUser, rpcPassword)
+        public LitecoinAdapter(string IP, int port, string rpcUser, string rpcPassword, string currencyCode) : base(IP, port, rpcUser, rpcPassword, currencyCode)
         {
         }
     }
