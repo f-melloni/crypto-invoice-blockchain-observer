@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using BlockchainObserver.Database.Entities;
 using BlockchainObserver.Database;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using SharpRaven;
+using SharpRaven.Data;
 
 namespace BlockchainObserver.Utils
 {
@@ -129,23 +131,36 @@ namespace BlockchainObserver.Utils
         {
             while (true)
             {
-                //Copy of address list (in case of the main list changes)
-                List<string> addresses = new List<string>(Addresses);
-                if (addresses.Count > 0) {
-                    JArray transactionList = _currency.GetLastTransactions();
+                try
+                {
+                    //Copy of address list (in case of the main list changes)
+                    List<string> addresses = new List<string>(Addresses);
+                    if (addresses.Count > 0)
+                    {
+                        JArray transactionList = _currency.GetLastTransactions();
 
-                    if (transactionList.HasValues) {
-                        foreach (string address in addresses) {
-                            JToken tx = transactionList.FirstOrDefault(a => a["address"].ToString() == address);
-                            if (tx != null) {
-                                int? confirmations = _currency.TransactionConfirmations(tx);
-                                if (confirmations != null && !SeenAddresses.ContainsKey(address))
-                                    OnPaymentSeen(address, (string)tx["06bddf6fc95915adad123cb93c310f533efbba55d8bb8759cc426fdf7ad0ec4c"]);
-                                if (confirmations >= RequiredConfirmations)
-                                    OnPaymentConfirmed(address);
+                        if (transactionList.HasValues)
+                        {
+                            foreach (string address in addresses)
+                            {
+                                JToken tx = transactionList.FirstOrDefault(a => a["address"].ToString() == address);
+                                if (tx != null)
+                                {
+                                    int? confirmations = _currency.TransactionConfirmations(tx);
+                                    if (confirmations != null && !SeenAddresses.ContainsKey(address))
+                                        OnPaymentSeen(address, (string)tx["06bddf6fc95915adad123cb93c310f533efbba55d8bb8759cc426fdf7ad0ec4c"]);
+                                    if (confirmations >= RequiredConfirmations)
+                                        OnPaymentConfirmed(address);
+                                }
                             }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    RavenClient ravenClient = new RavenClient(@"http://150379555fca4cf3b1145013d8d740c7:e237b7c99d944bec8a053f81a31f97a3@185.59.209.146:38082/2");
+                    ravenClient.Capture(new SentryEvent(ex));
+
                 }
 
                 Thread.Sleep(Interval);
