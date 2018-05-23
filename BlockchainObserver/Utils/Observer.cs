@@ -78,17 +78,17 @@ namespace BlockchainObserver.Utils
             }
         }
 
-        private static void OnPaymentSeen(string address, string txHash)
+        private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
         {
-            SeenAddresses.Add(address, txHash);
-            RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentSeen\", \"params\": [{address}]}}");
+            SeenAddresses.Add(Address, TXID);
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionSeen"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }}");
         }
 
-        private static void OnPaymentConfirmed(string address)
+        private static void OnPaymentConfirmed(string CurrencyCode, string Address, double Amount, string TXID)
         {
-            Addresses.Remove(address);
-            SeenAddresses.Remove(address);
-            RabbitMessenger.Send($"{{\"jsonrpc\": \"2.0\", \"method\": \"PaymentConfirmed\", \"params\": [{address}]}}");
+            Addresses.Remove(Address);
+            SeenAddresses.Remove(Address);
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionConfirmed"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }}");
         }
 
         public static void Setup(IConfiguration configuration)
@@ -148,9 +148,9 @@ namespace BlockchainObserver.Utils
                                 {
                                     int? confirmations = _currency.TransactionConfirmations(tx);
                                     if (confirmations != null && !SeenAddresses.ContainsKey(address))
-                                        OnPaymentSeen(address, (string)tx["06bddf6fc95915adad123cb93c310f533efbba55d8bb8759cc426fdf7ad0ec4c"]);
+                                        OnPaymentSeen(CurrencyName,(string)tx["address"],tx["amount"].ToObject<double>(),(string)tx["TXID"]);
                                     if (confirmations >= RequiredConfirmations)
-                                        OnPaymentConfirmed(address);
+                                        OnPaymentConfirmed(CurrencyName, (string)tx["address"], tx["amount"].ToObject<double>(), (string)tx["TXID"]);
                                 }
                             }
                         }
