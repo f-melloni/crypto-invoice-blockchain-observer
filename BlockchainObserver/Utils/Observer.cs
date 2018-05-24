@@ -12,6 +12,7 @@ using BlockchainObserver.Database;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using SharpRaven;
 using SharpRaven.Data;
+using NBitcoin;
 
 namespace BlockchainObserver.Utils
 {
@@ -72,10 +73,31 @@ namespace BlockchainObserver.Utils
             string method = message["method"].ToString().ToLower();
             switch (method)
             {
-                case "watchaddress":
+                case "WachAddress":
                     AddAddress(message);
-                break;
+                    break;
+                case "GetNewAddress":
+                    var paramaters = (JObject)message["params"];
+                    int InvoiceID = paramaters.GetValue("InvoiceID").ToObject<int>();
+                    string XPUB = paramaters.GetValue("XPUB").ToObject<string>();
+
+                    OnGetNewAddress(InvoiceID,XPUB);
+                    break;
             }
+        }
+        private static void OnGetNewAddress(int InvoiceID, string XPUB)
+        {
+            var pubKey = ExtPubKey.Parse(XPUB);
+            //get last index for bitcoin addresses
+            var last_index = 0;
+            using (DBEntities dbe = new DBEntities()) {
+                if(dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
+                    last_index = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName).Index;
+                }
+            }
+                var newAddress = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }}");
+
         }
 
         private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
