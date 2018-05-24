@@ -90,20 +90,22 @@ namespace BlockchainObserver.Utils
             var pubKey = ExtPubKey.Parse(XPUB);
             //get last index for bitcoin addresses
             var last_index = 0;
+            var newAddress = "";
             using (DBEntities dbe = new DBEntities()) {
                 var lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
 
                 if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
                     last_index = lastInd.Index;
-                    var newAddress = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
-
+                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
+                    newAddress = newAddressGenerated.ToString();
 
                 }
                 else
                 {
                     LastAddressIndex lai = new LastAddressIndex() { Currency = CurrencyName, Index = 1 };
                     dbe.LastAddressIndex.Add(lai);
-                    var newAddress = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(Network.Main);
+                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(Network.Main);
+                    newAddress = newAddressGenerated.ToString();
 
                 }
                 lastInd.Index += 1;
@@ -113,6 +115,7 @@ namespace BlockchainObserver.Utils
             }
             
             RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }}");
+            _currency.ImportAddress(newAddress);
 
         }
 
