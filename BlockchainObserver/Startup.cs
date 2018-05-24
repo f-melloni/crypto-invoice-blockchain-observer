@@ -54,7 +54,6 @@ namespace BlockchainObserver
             
             RabbitMessenger.Setup(configuration);
             Observer.Setup(configuration);
-            NBitcoin.Litecoin.Networks.Register();
         }
     }
 }
