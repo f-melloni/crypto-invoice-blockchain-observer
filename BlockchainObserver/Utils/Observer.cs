@@ -70,7 +70,7 @@ namespace BlockchainObserver.Utils
         /// <param name="message"></param>
         public static void ParseMessage(JToken message)
         {
-            string method = message["method"].ToString().ToLower();
+            string method = message["method"].ToString();
             switch (method)
             {
                 case "WachAddress":
@@ -96,7 +96,7 @@ namespace BlockchainObserver.Utils
 
                 if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
                     last_index = lastInd.Index;
-                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
+                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(CurrencyName == "LTC" ? NBitcoin.Litecoin.Networks.Mainnet : Network.Main);
                     newAddress = newAddressGenerated.ToString();
 
                 }
@@ -104,10 +104,14 @@ namespace BlockchainObserver.Utils
                 {
                     LastAddressIndex lai = new LastAddressIndex() { Currency = CurrencyName, Index = 1 };
                     dbe.LastAddressIndex.Add(lai);
-                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(Network.Main);
+                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(CurrencyName == "LTC" ? NBitcoin.Litecoin.Networks.Mainnet : Network.Main);
                     newAddress = newAddressGenerated.ToString();
+                    dbe.SaveChanges();
 
                 }
+
+                if (lastInd == null)
+                    lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
                 lastInd.Index += 1;
                 dbe.LastAddressIndex.Update(lastInd);
                 dbe.SaveChanges();
@@ -115,7 +119,7 @@ namespace BlockchainObserver.Utils
             }
             
             RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }}");
-            _currency.ImportAddress(newAddress);
+            //_currency.ImportAddress(newAddress);
 
         }
 

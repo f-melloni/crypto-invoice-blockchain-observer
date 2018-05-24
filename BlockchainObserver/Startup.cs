@@ -18,11 +18,14 @@ namespace BlockchainObserver
 {
     public class Startup
     {
-        public IConfiguration Configuration { get; }
+        public static IConfiguration Configuration { get; set; }
+        public static string ConnectionString { get; set; }
 
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
+
+            ConnectionString = Configuration.GetConnectionString("DefaultConnection");
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
@@ -51,6 +54,7 @@ namespace BlockchainObserver
             
             RabbitMessenger.Setup(configuration);
             Observer.Setup(configuration);
+            NBitcoin.Litecoin.Networks.Register();
         }
     }
 }

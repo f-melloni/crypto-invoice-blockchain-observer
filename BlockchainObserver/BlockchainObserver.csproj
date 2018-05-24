@@ -22,6 +22,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.All" Version="2.0.6" />
     <PackageReference Include="NBitcoin" Version="4.1.1.8" />
+    <PackageReference Include="NBitcoin.Litecoin" Version="1.0.0.9" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="2.0.1" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql.Design" Version="1.1.2" />
     <PackageReference Include="RabbitMQ.Client" Version="5.0.1" />
