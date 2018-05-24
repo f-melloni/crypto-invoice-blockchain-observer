@@ -91,11 +91,27 @@ namespace BlockchainObserver.Utils
             //get last index for bitcoin addresses
             var last_index = 0;
             using (DBEntities dbe = new DBEntities()) {
-                if(dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
-                    last_index = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName).Index;
+                var lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
+
+                if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
+                    last_index = lastInd.Index;
+                    var newAddress = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
+
+
                 }
+                else
+                {
+                    LastAddressIndex lai = new LastAddressIndex() { Currency = CurrencyName, Index = 1 };
+                    dbe.LastAddressIndex.Add(lai);
+                    var newAddress = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(Network.Main);
+
+                }
+                lastInd.Index += 1;
+                dbe.LastAddressIndex.Update(lastInd);
+                dbe.SaveChanges();
+
             }
-                var newAddress = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main);
+            
             RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }}");
 
         }
