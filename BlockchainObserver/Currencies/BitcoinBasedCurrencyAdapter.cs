@@ -66,6 +66,8 @@ namespace BlockchainObserver.Currencies
                 else {
                     lastBlockHash = lastBlock.LastSeenBlock;
                 }
+
+
                 
                 object[] p = new object[] {
                     lastBlockHash,

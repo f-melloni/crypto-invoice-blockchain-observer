@@ -97,7 +97,16 @@ namespace BlockchainObserver.Utils
 
                 if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
                     last_index = lastInd.Index;
-                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(CurrencyName == "LTC" ? network : Network.Main);
+                    var newAddressGenerated = "";
+                    if (CurrencyName == "LTC")
+                    {
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetAddress(network).ToString();
+                    }
+                    else
+                    {
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main).ToString();
+
+                    }
                     newAddress = newAddressGenerated.ToString();
 
                 }
@@ -107,6 +116,7 @@ namespace BlockchainObserver.Utils
                     dbe.LastAddressIndex.Add(lai);
                     var newAddressGenerated = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(CurrencyName == "LTC" ? network : Network.Main);
                     newAddress = newAddressGenerated.ToString();
+
                     dbe.SaveChanges();
 
                 }
@@ -115,26 +125,34 @@ namespace BlockchainObserver.Utils
                     lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
                 lastInd.Index += 1;
                 dbe.LastAddressIndex.Update(lastInd);
+                
+                dbe.Addresses.Add(new AddressCache() { Address = newAddress.ToString(), Currency = CurrencyName });
+                Addresses.Add(newAddress.ToString());
                 dbe.SaveChanges();
-
             }
             
             RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }} }}");
             _currency.ImportAddress(newAddress);
+            
 
         }
 
         private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
         {
             SeenAddresses.Add(Address, TXID);
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionSeen"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }}");
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionSeen"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }} }}");
         }
 
         private static void OnPaymentConfirmed(string CurrencyCode, string Address, double Amount, string TXID)
         {
+            using(DBEntities dbe = new DBEntities())
+            {
+                dbe.Addresses.Remove(dbe.Addresses.SingleOrDefault(a => a.Address == Address));
+                dbe.SaveChanges();
+            }
             Addresses.Remove(Address);
             SeenAddresses.Remove(Address);
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionConfirmed"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }}");
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionConfirmed"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }} }}");
         }
 
         public static void Setup(IConfiguration configuration)
@@ -151,7 +169,7 @@ namespace BlockchainObserver.Utils
             object[] args = { HostName, Port, RpcUserName, RpcPassword, CurrencyName };
             _currency = (ICurrencyAdapter)Activator.CreateInstance(CurrencyAdapter.Types[CurrencyName], args);
 
-            Interval = Convert.ToInt16(configuration["Observer:Interval"]);
+            Interval = Convert.ToInt32(configuration["Observer:Interval"]);
             RequiredConfirmations = Convert.ToInt16(configuration["Observer:Confirmations"]);
 
             // Load from cache
@@ -194,9 +212,9 @@ namespace BlockchainObserver.Utils
                                 {
                                     int? confirmations = _currency.TransactionConfirmations(tx);
                                     if (confirmations != null && !SeenAddresses.ContainsKey(address))
-                                        OnPaymentSeen(CurrencyName,(string)tx["address"],tx["amount"].ToObject<double>(),(string)tx["TXID"]);
+                                        OnPaymentSeen(CurrencyName,(string)tx["address"],tx["amount"].ToObject<double>(),(string)tx["txid"]);
                                     if (confirmations >= RequiredConfirmations)
-                                        OnPaymentConfirmed(CurrencyName, (string)tx["address"], tx["amount"].ToObject<double>(), (string)tx["TXID"]);
+                                        OnPaymentConfirmed(CurrencyName, (string)tx["address"], tx["amount"].ToObject<double>(), (string)tx["txid"]);
                                 }
                             }
                         }
