@@ -21,17 +21,19 @@ namespace BlockchainObserver
         public static IConfiguration Configuration { get; set; }
         public static string ConnectionString { get; set; }
 
-        public Startup(IConfiguration configuration)
+        public Startup(IConfiguration configuration, IHostingEnvironment env)
         {
             Configuration = configuration;
 
-            ConnectionString = Configuration.GetConnectionString("DefaultConnection");
+            ConnectionString = env.IsDevelopment()
+               ? Configuration.GetConnectionString("DefaultConnection")
+               : Configuration.GetConnectionString("ReleaseConnection");
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<DBEntities>(options => options.UseMySql(Configuration.GetConnectionString("DefaultConnection"), b => b.MigrationsAssembly("BlockchainObserver")));
+            services.AddDbContext<DBEntities>(options => options.UseMySql(ConnectionString, b => b.MigrationsAssembly("BlockchainObserver")));
             services.AddMvc();
         }
 
@@ -52,7 +54,7 @@ namespace BlockchainObserver
                 return;
             }
             
-            RabbitMessenger.Setup(configuration);
+            RabbitMessenger.Setup(configuration, env);
             Observer.Setup(configuration);
         }
     }
