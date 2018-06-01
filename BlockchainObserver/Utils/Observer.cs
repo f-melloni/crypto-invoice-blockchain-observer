@@ -163,7 +163,7 @@ namespace BlockchainObserver.Utils
             RpcUserName = configuration["Observer:RpcUserName"];
             RpcPassword = configuration["Observer:RpcPassword"];
 
-            dbContextOptions.UseMySql(configuration.GetConnectionString("DefaultConnection"));
+            dbContextOptions.UseMySql(Startup.ConnectionString);
             DBEntities db = new DBEntities(dbContextOptions.Options);
 
             object[] args = { HostName, Port, RpcUserName, RpcPassword, CurrencyName };
