@@ -89,22 +89,34 @@ namespace BlockchainObserver.Utils
         {
             var pubKey = ExtPubKey.Parse(XPUB);
             //get last index for bitcoin addresses
-            var last_index = 0;
             var newAddress = "";
             Network network = NBitcoin.Altcoins.Litecoin.Instance.Mainnet;
+
             using (DBEntities dbe = new DBEntities()) {
-                var lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
+                XpubAddressIndex newestXpubIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
+
+                if (newestXpubIndex == null)
+                {
+                    XpubAddressIndex xai = new XpubAddressIndex() { Xpub = XPUB, Index = 0 };
+                    dbe.XpubAddressIndex.Add(xai);
+                }
+                else
+                {
+                    newestXpubIndex.Index += 1;
+                    dbe.XpubAddressIndex.Update(newestXpubIndex);
+                    dbe.SaveChanges();
+                }
+                int lastInd = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB).Index;
 
                 if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
-                    last_index = lastInd.Index;
                     var newAddressGenerated = "";
                     if (CurrencyName == "LTC")
                     {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetAddress(network).ToString();
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
                     }
                     else
                     {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)last_index).PubKey.GetSegwitAddress(Network.Main).ToString();
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
 
                     }
                     newAddress = newAddressGenerated.ToString();
@@ -121,22 +133,8 @@ namespace BlockchainObserver.Utils
 
                 }
 
-                if (lastInd == null)
-                    lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
-                lastInd.Index += 1;
-                dbe.LastAddressIndex.Update(lastInd);
-                XpubAddressIndex newestXpubIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
-
-                if (newestXpubIndex == null)
-                {
-                    XpubAddressIndex xai = new XpubAddressIndex() { Xpub = XPUB, Index = 0 };
-                    dbe.XpubAddressIndex.Add(xai);
-                }
-                else
-                {
-                    newestXpubIndex.Index += 1;
-                    dbe.XpubAddressIndex.Update(newestXpubIndex);
-                }
+                
+               
                 dbe.Addresses.Add(new AddressCache() { Address = newAddress.ToString(), Currency = CurrencyName });
                 Addresses.Add(newAddress.ToString());
                 dbe.SaveChanges();
