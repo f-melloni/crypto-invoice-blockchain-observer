@@ -11,9 +11,10 @@ using System;
 namespace BlockchainObserver.Migrations
 {
     [DbContext(typeof(DBEntities))]
-    partial class DBEntitiesModelSnapshot : ModelSnapshot
+    [Migration("20180604103314_xpubIndex")]
+    partial class xpubIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -53,6 +54,22 @@ namespace BlockchainObserver.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("BlockCaches");
+                });
+
+            modelBuilder.Entity("BlockchainObserver.Database.Entities.LastAddressIndex", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd();
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10);
+
+                    b.Property<int>("Index");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LastAddressIndex");
                 });
 
             modelBuilder.Entity("BlockchainObserver.Database.Entities.TransactionCache", b =>

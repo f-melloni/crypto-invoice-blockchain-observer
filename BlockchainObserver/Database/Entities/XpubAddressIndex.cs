@@ -6,19 +6,17 @@ using System.Threading.Tasks;
 
 namespace BlockchainObserver.Database.Entities
 {
-    public class LastAddressIndex
+    public class XpubAddressIndex
     {
         [Key]
         [Required]
         public int Id { get; set; }
 
         [Required]
-        [StringLength(10)]
-        public string Currency { get; set; }
+        [StringLength(112)]
+        public string Xpub { get; set; }
 
         [Required]
         public int Index { get; set; }
-
-        
     }
 }
