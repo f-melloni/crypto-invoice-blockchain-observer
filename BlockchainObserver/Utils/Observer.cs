@@ -70,13 +70,13 @@ namespace BlockchainObserver.Utils
         /// <param name="message"></param>
         public static void ParseMessage(JToken message)
         {
-            string method = message["method"].ToString();
+            string method = message["method"].ToString().ToLower();
             switch (method)
             {
-                case "WachAddress":
+                case "wachaddress":
                     AddAddress(message);
                     break;
-                case "GetNewAddress":
+                case "getnewaddress":
                     var paramaters = (JObject)message["params"];
                     int InvoiceID = paramaters.GetValue("InvoiceID").ToObject<int>();
                     string XPUB = paramaters.GetValue("XPUB").ToObject<string>();
@@ -89,8 +89,8 @@ namespace BlockchainObserver.Utils
         {
             var pubKey = ExtPubKey.Parse(XPUB);
             //get last index for bitcoin addresses
-            var newAddress = "";
             Network network = NBitcoin.Altcoins.Litecoin.Instance.Mainnet;
+            var newAddressGenerated = "";
 
             using (DBEntities dbe = new DBEntities()) {
                 XpubAddressIndex newestXpubIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
@@ -107,43 +107,21 @@ namespace BlockchainObserver.Utils
                     dbe.SaveChanges();
                 }
                 int lastInd = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB).Index;
-
-                if (dbe.LastAddressIndex.Any(l => l.Currency == CurrencyName)){
-                    var newAddressGenerated = "";
-                    if (CurrencyName == "LTC")
-                    {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
-                    }
-                    else
-                    {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
-
-                    }
-                    newAddress = newAddressGenerated.ToString();
-
-                }
-                else
-                {
-                    LastAddressIndex lai = new LastAddressIndex() { Currency = CurrencyName, Index = 1 };
-                    dbe.LastAddressIndex.Add(lai);
-                    var newAddressGenerated = pubKey.Derive(0).Derive((uint)lai.Index).PubKey.GetSegwitAddress(CurrencyName == "LTC" ? network : Network.Main);
-                    newAddress = newAddressGenerated.ToString();
-
-                    dbe.SaveChanges();
-
-                }
-
                 
-               
-                dbe.Addresses.Add(new AddressCache() { Address = newAddress.ToString(), Currency = CurrencyName });
-                Addresses.Add(newAddress.ToString());
+                if (CurrencyName == "LTC") {
+                    newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
+                }
+                else {
+                    newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
+                }
+
+                dbe.Addresses.Add(new AddressCache() { Address = newAddressGenerated, Currency = CurrencyName });
+                Addresses.Add(newAddressGenerated);
                 dbe.SaveChanges();
             }
             
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }} }}");
-            _currency.ImportAddress(newAddress);
-            
-
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddressGenerated}"" }} }}");
+            _currency.ImportAddress(newAddressGenerated);
         }
 
         private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
