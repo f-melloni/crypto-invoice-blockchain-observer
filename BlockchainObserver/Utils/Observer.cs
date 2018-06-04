@@ -28,6 +28,7 @@ namespace BlockchainObserver.Utils
         private static int Port;
         private static int Interval;
         private static int RequiredConfirmations;
+        private static RavenClient ravenClient;
 
         public static DbContextOptionsBuilder<DBEntities> dbContextOptions = new DbContextOptionsBuilder<DBEntities>();
 
@@ -87,7 +88,15 @@ namespace BlockchainObserver.Utils
         }
         private static void OnGetNewAddress(int InvoiceID, string XPUB)
         {
-            var pubKey = ExtPubKey.Parse(XPUB);
+            ExtPubKey pubKey = null;
+            try {
+                pubKey = ExtPubKey.Parse(XPUB);
+            }
+            catch(Exception e) {
+                Exception ex = new Exception($"Invalid {CurrencyName} XPUB - {XPUB}", e);
+                ravenClient.Capture(new SentryEvent(ex));
+                return;
+            }
             //get last index for bitcoin addresses
             Network network = NBitcoin.Altcoins.Litecoin.Instance.Mainnet;
             var newAddressGenerated = "";
@@ -107,21 +116,43 @@ namespace BlockchainObserver.Utils
                     dbe.SaveChanges();
                 }
                 int lastInd = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB).Index;
-                
-                if (CurrencyName == "LTC") {
-                    newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
+
+                try {
+                    if (CurrencyName == "LTC") {
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
+                    }
+                    else {
+                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
+                    }
                 }
-                else {
-                    newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
+                catch(Exception e) {
+                    Exception ex = new Exception($"Unable to generate {CurrencyName} address from XPUB - {XPUB}", e);
+                    ravenClient.Capture(new SentryEvent(ex));
+                    throw e;
                 }
 
                 dbe.Addresses.Add(new AddressCache() { Address = newAddressGenerated, Currency = CurrencyName });
                 Addresses.Add(newAddressGenerated);
                 dbe.SaveChanges();
             }
-            
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddressGenerated}"" }} }}");
-            _currency.ImportAddress(newAddressGenerated);
+
+            string message = $@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddressGenerated}"" }} }}";
+            try {
+                RabbitMessenger.Send(message);
+            }
+            catch(Exception e) {
+                Exception ex = new Exception($"Unable to send message to RabbitMQ - {message}", e);
+                ravenClient.Capture(new SentryEvent(ex));
+                throw e;
+            }
+            try {
+                _currency.ImportAddress(newAddressGenerated);
+            }
+            catch(Exception e) {
+                Exception ex = new Exception($"Unable to import {CurrencyName} address - {newAddressGenerated}", e);
+                ravenClient.Capture(new SentryEvent(ex));
+                throw e;
+            }
         }
 
         private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
@@ -158,6 +189,9 @@ namespace BlockchainObserver.Utils
 
             Interval = Convert.ToInt32(configuration["Observer:Interval"]);
             RequiredConfirmations = Convert.ToInt16(configuration["Observer:Confirmations"]);
+
+            string sentryUrl = configuration["SentryClientUrl"];
+            ravenClient = new RavenClient(sentryUrl);
 
             // Load from cache
             Addresses = db.Addresses.Where(a => a.Currency == CurrencyName).Select(a => a.Address).ToList();
@@ -209,9 +243,7 @@ namespace BlockchainObserver.Utils
                 }
                 catch (Exception ex)
                 {
-                    RavenClient ravenClient = new RavenClient(@"http://150379555fca4cf3b1145013d8d740c7:e237b7c99d944bec8a053f81a31f97a3@185.59.209.146:38082/2");
                     ravenClient.Capture(new SentryEvent(ex));
-
                 }
 
                 Thread.Sleep(Interval);
