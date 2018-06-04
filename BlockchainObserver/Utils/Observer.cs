@@ -125,7 +125,18 @@ namespace BlockchainObserver.Utils
                     lastInd = dbe.LastAddressIndex.SingleOrDefault(x => x.Currency == CurrencyName);
                 lastInd.Index += 1;
                 dbe.LastAddressIndex.Update(lastInd);
-                
+                XpubAddressIndex newestXpubIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
+
+                if (newestXpubIndex == null)
+                {
+                    XpubAddressIndex xai = new XpubAddressIndex() { Xpub = XPUB, Index = 0 };
+                    dbe.XpubAddressIndex.Add(xai);
+                }
+                else
+                {
+                    newestXpubIndex.Index += 1;
+                    dbe.XpubAddressIndex.Update(newestXpubIndex);
+                }
                 dbe.Addresses.Add(new AddressCache() { Address = newAddress.ToString(), Currency = CurrencyName });
                 Addresses.Add(newAddress.ToString());
                 dbe.SaveChanges();
