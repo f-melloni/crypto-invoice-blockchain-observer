@@ -12,7 +12,6 @@ namespace BlockchainObserver.Database
         public virtual DbSet<AddressCache> Addresses { get; set; }
         public virtual DbSet<TransactionCache> Transactions { get; set; }
         public virtual DbSet<BlockCache> BlockCaches { get; set; }
-        public virtual DbSet<LastAddressIndex> LastAddressIndex { get; set; }
         public virtual DbSet<XpubAddressIndex> XpubAddressIndex { get; set; }
 
         public DBEntities(DbContextOptions<DBEntities> options) : base(options)
