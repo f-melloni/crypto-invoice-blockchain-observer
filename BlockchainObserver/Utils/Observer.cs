@@ -113,8 +113,8 @@ namespace BlockchainObserver.Utils
                 {
                     newestXpubIndex.Index += 1;
                     dbe.XpubAddressIndex.Update(newestXpubIndex);
-                    dbe.SaveChanges();
                 }
+                dbe.SaveChanges();
                 int lastInd = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB).Index;
 
                 try {
