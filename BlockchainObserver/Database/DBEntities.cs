@@ -18,10 +18,17 @@ namespace BlockchainObserver.Database
         {
 
         }
-        public DBEntities() : this(new DbContextOptions<DBEntities>())
+
+        public DBEntities() : this(GetOptions())
         {
 
         }
+
+        private static DbContextOptions<DBEntities> GetOptions()
+        {
+            return (MySqlDbContextOptionsExtensions.UseMySql(new DbContextOptionsBuilder<DBEntities>(), Startup.ConnectionString).Options);
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<TransactionCache>().HasIndex(t => t.Currency);
