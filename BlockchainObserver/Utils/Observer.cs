@@ -1,18 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using System.Threading;
-using Microsoft.Extensions.Configuration;
-using BlockchainObserver.Currencies;
-using Microsoft.EntityFrameworkCore;
-using BlockchainObserver.Database.Entities;
+﻿using BlockchainObserver.Currencies;
 using BlockchainObserver.Database;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+using BlockchainObserver.Database.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using NBitcoin;
+using NBXplorer.DerivationStrategy;
+using Newtonsoft.Json.Linq;
 using SharpRaven;
 using SharpRaven.Data;
-using NBitcoin;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 
 namespace BlockchainObserver.Utils
 {
@@ -88,55 +87,42 @@ namespace BlockchainObserver.Utils
         }
         private static void OnGetNewAddress(int InvoiceID, string XPUB)
         {
-            ExtPubKey pubKey = null;
-            try {
-                pubKey = ExtPubKey.Parse(XPUB);
+            Network network = Network.Main;
+            switch(CurrencyName) {
+                case "LTC": network = NBitcoin.Altcoins.Litecoin.Instance.Mainnet; break;
             }
-            catch(Exception e) {
-                Exception ex = new Exception($"Invalid {CurrencyName} XPUB - {XPUB}", e);
-                ravenClient.Capture(new SentryEvent(ex));
-                return;
-            }
-            //get last index for bitcoin addresses
-            Network network = NBitcoin.Altcoins.Litecoin.Instance.Mainnet;
-            var newAddressGenerated = "";
+                
+            var newAddress = "";
+            using (DBEntities dbe = new DBEntities()) 
+            {
+                XpubAddressIndex lastIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
 
-            using (DBEntities dbe = new DBEntities()) {
-                XpubAddressIndex newestXpubIndex = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB);
-
-                if (newestXpubIndex == null)
-                {
-                    XpubAddressIndex xai = new XpubAddressIndex() { Xpub = XPUB, Index = 0 };
-                    dbe.XpubAddressIndex.Add(xai);
+                if (lastIndex == null) {
+                    lastIndex = new XpubAddressIndex() { Xpub = XPUB, Index = -1 };
+                    dbe.XpubAddressIndex.Add(lastIndex);
                 }
-                else
-                {
-                    newestXpubIndex.Index += 1;
-                    dbe.XpubAddressIndex.Update(newestXpubIndex);
-                }
-                dbe.SaveChanges();
-                int lastInd = dbe.XpubAddressIndex.SingleOrDefault(x => x.Xpub == XPUB).Index;
-
+                
                 try {
-                    if (CurrencyName == "LTC") {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetAddress(network).ToString();
+                    if(XPUB.StartsWith("ypub")) {
+                        newAddress = GetAddressFromYPUB(XPUB, (uint)lastIndex.Index + 1, network);
                     }
                     else {
-                        newAddressGenerated = pubKey.Derive(0).Derive((uint)lastInd).PubKey.GetSegwitAddress(Network.Main).ToString();
+                        newAddress = GetAddressFromXPUB(XPUB, (uint)lastIndex.Index + 1, network);
                     }
                 }
                 catch(Exception e) {
-                    Exception ex = new Exception($"Unable to generate {CurrencyName} address from XPUB - {XPUB}", e);
-                    ravenClient.Capture(new SentryEvent(ex));
-                    throw e;
+                    ravenClient.Capture(new SentryEvent(e));
+                    return;
                 }
 
-                dbe.Addresses.Add(new AddressCache() { Address = newAddressGenerated, Currency = CurrencyName });
-                Addresses.Add(newAddressGenerated);
+                lastIndex.Index++;
+                Addresses.Add(newAddress);
+
+                dbe.Addresses.Add(new AddressCache() { Address = newAddress, Currency = CurrencyName });
                 dbe.SaveChanges();
             }
 
-            string message = $@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddressGenerated}"" }} }}";
+            string message = $@"{{""jsonrpc"": ""2.0"", ""method"": ""SetAddress"", ""params"": {{""InvoiceID"":{InvoiceID},""CurrencyCode"":""{CurrencyName}"",""Address"":""{newAddress}"" }} }}";
             try {
                 RabbitMessenger.Send(message);
             }
@@ -146,12 +132,55 @@ namespace BlockchainObserver.Utils
                 throw e;
             }
             try {
-                _currency.ImportAddress(newAddressGenerated);
+                _currency.ImportAddress(newAddress);
             }
             catch(Exception e) {
-                Exception ex = new Exception($"Unable to import {CurrencyName} address - {newAddressGenerated}", e);
+                Exception ex = new Exception($"Unable to import {CurrencyName} address - {newAddress}", e);
                 ravenClient.Capture(new SentryEvent(ex));
                 throw e;
+            }
+        }
+
+        private static string GetAddressFromXPUB(string XPUB, uint index, Network network)
+        {
+            ExtPubKey pubKey = null;
+            try {
+                pubKey = ExtPubKey.Parse(XPUB);
+            }
+            catch(Exception e) {
+                Exception ex = new Exception($"Invalid {CurrencyName} XPUB - {XPUB}", e);
+                throw ex;
+            }
+            
+            try {
+                string address = pubKey.Derive(0).Derive(index).PubKey.GetSegwitAddress(network).ToString();
+                return address;
+            }
+            catch(Exception e) {
+                Exception ex = new Exception($"Unable to generate {CurrencyName} address from XPUB - {XPUB}", e);
+                throw ex;
+            }
+        }
+
+        private static string GetAddressFromYPUB(string YPUB, uint index, Network network)
+        {
+            DerivationStrategyBase ds = null;
+            try {
+                var parser = new DerivationSchemeParser(network);
+                ds = parser.Parse(YPUB);
+            }
+            catch (Exception e) {
+                Exception ex = new Exception($"Invalid {CurrencyName} YPUB - {YPUB}", e);
+                throw ex;
+            }
+
+            try {
+                string address = ds.Derive(new KeyPath(new uint[] { 0, index })).Redeem.GetScriptAddress(network).ToString();
+                return address;
+            }
+            catch (Exception e) {
+                Exception ex = new Exception($"Unable to generate {CurrencyName} address from YPUB - {YPUB}", e);
+                throw ex;
             }
         }
 
