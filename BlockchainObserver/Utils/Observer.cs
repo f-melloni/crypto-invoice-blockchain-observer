@@ -153,7 +153,7 @@ namespace BlockchainObserver.Utils
             }
             
             try {
-                string address = pubKey.Derive(0).Derive(index).PubKey.GetSegwitAddress(network).ToString();
+                string address = pubKey.Derive(0).Derive(index).PubKey.GetScriptAddress(network).ToString();
                 return address;
             }
             catch(Exception e) {
