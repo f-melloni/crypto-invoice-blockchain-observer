@@ -28,6 +28,11 @@ namespace BlockchainObserver
             ConnectionString = env.IsDevelopment()
                ? Configuration.GetConnectionString("DefaultConnection")
                : Configuration.GetConnectionString("ReleaseConnection");
+
+            using (var context = new DBEntities())
+            {
+                context.Database.Migrate();
+            }
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
