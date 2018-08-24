@@ -184,13 +184,14 @@ namespace BlockchainObserver.Utils
             }
         }
 
-        private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID)
+        private static void OnPaymentSeen(string CurrencyCode, string Address, double Amount, string TXID, int Timestamp)
+
         {
             SeenAddresses.Add(Address, TXID);
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionSeen"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }} }}");
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionSeen"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"",""Time"":""{Timestamp}"" }} }}");
         }
 
-        private static void OnPaymentConfirmed(string CurrencyCode, string Address, double Amount, string TXID)
+        private static void OnPaymentConfirmed(string CurrencyCode, string Address, double Amount, string TXID, int Timestamp)
         {
             using(DBEntities dbe = new DBEntities())
             {
@@ -199,7 +200,7 @@ namespace BlockchainObserver.Utils
             }
             Addresses.Remove(Address);
             SeenAddresses.Remove(Address);
-            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionConfirmed"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"" }} }}");
+            RabbitMessenger.Send($@"{{""jsonrpc"": ""2.0"", ""method"": ""TransactionConfirmed"", ""params"": {{""CurrencyCode"":""{CurrencyCode}"",""Address"":""{Address}"",""Amount"":""{Amount}"",""TXID"":""{TXID}"",""Time"":""{Timestamp}"" }} }}");
         }
 
         public static void Setup(IConfiguration configuration)
@@ -262,9 +263,9 @@ namespace BlockchainObserver.Utils
                                 {
                                     int? confirmations = _currency.TransactionConfirmations(tx);
                                     if (confirmations != null && !SeenAddresses.ContainsKey(address))
-                                        OnPaymentSeen(CurrencyName,(string)tx["address"],tx["amount"].ToObject<double>(),(string)tx["txid"]);
+                                        OnPaymentSeen(CurrencyName,(string)tx["address"],tx["amount"].ToObject<double>(),(string)tx["txid"],(int)tx["time"]);
                                     if (confirmations >= RequiredConfirmations)
-                                        OnPaymentConfirmed(CurrencyName, (string)tx["address"], tx["amount"].ToObject<double>(), (string)tx["txid"]);
+                                        OnPaymentConfirmed(CurrencyName, (string)tx["address"], tx["amount"].ToObject<double>(), (string)tx["txid"],(int)tx["time"]);
                                 }
                             }
                         }
