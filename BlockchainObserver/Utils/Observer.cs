@@ -103,7 +103,7 @@ namespace BlockchainObserver.Utils
                 }
                 
                 try {
-                    if(XPUB.StartsWith("ypub")) {
+                    if(XPUB.StartsWith("ypub") || XPUB.StartsWith("Mtub")) {
                         newAddress = GetAddressFromYPUB(XPUB, (uint)lastIndex.Index + 1, network);
                     }
                     else {
