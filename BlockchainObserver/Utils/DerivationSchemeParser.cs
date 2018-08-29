@@ -34,9 +34,14 @@ namespace BlockchainObserver.Utils
                     hintedLabels.Add("p2sh");
                 }
             }
-
-            if (!Network.Consensus.SupportSegwit)
-                hintedLabels.Add("legacy");
+            else {
+                if (Network.Consensus.SupportSegwit) {
+                    hintedLabels.Add("p2sh");
+                }
+                else {
+                    hintedLabels.Add("legacy");
+                }
+            }
 
             try {
                 var result = new DerivationStrategyFactory(Network).Parse(str);

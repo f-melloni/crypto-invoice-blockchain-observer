@@ -165,15 +165,15 @@ namespace BlockchainObserver.Utils
 
         private static string GetAddressFromYPUB(string YPUB, uint index, Network network)
         {
-            string BTC_YPUB = Regex.Replace(YPUB, @"^Mtub", "Ltub"); // Accept litecoin-prefixed format as normal YPUB
+            //string BTC_YPUB = Regex.Replace(YPUB, @"^Mtub", "ypub"); // Accept litecoin-prefixed format as normal YPUB
             
             DerivationStrategyBase ds = null;
             try {
                 var parser = new DerivationSchemeParser(network);
-                ds = parser.Parse(BTC_YPUB);
+                ds = parser.Parse(YPUB);
             }
             catch (Exception e) {
-                Exception ex = new Exception($"Invalid {CurrencyName} YPUB - {BTC_YPUB}", e);
+                Exception ex = new Exception($"Invalid {CurrencyName} YPUB - {YPUB}", e);
                 throw ex;
             }
 
@@ -182,7 +182,7 @@ namespace BlockchainObserver.Utils
                 return address;
             }
             catch (Exception e) {
-                Exception ex = new Exception($"Unable to generate {CurrencyName} address from YPUB - {BTC_YPUB}", e);
+                Exception ex = new Exception($"Unable to generate {CurrencyName} address from YPUB - {YPUB}", e);
                 throw ex;
             }
         }
