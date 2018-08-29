@@ -104,7 +104,7 @@ namespace BlockchainObserver.Utils
                 }
                 
                 try {
-                    if(XPUB.StartsWith("ypub") || XPUB.StartsWith("Mtub")) {
+                    if(Regex.IsMatch(XPUB,"^(ypub|Mtub|Ltub)")) {
                         newAddress = GetAddressFromYPUB(XPUB, (uint)lastIndex.Index + 1, network);
                     }
                     else {
@@ -165,8 +165,6 @@ namespace BlockchainObserver.Utils
 
         private static string GetAddressFromYPUB(string YPUB, uint index, Network network)
         {
-            //string BTC_YPUB = Regex.Replace(YPUB, @"^Mtub", "ypub"); // Accept litecoin-prefixed format as normal YPUB
-            
             DerivationStrategyBase ds = null;
             try {
                 var parser = new DerivationSchemeParser(network);
@@ -178,8 +176,12 @@ namespace BlockchainObserver.Utils
             }
 
             try {
-                string address = ds.Derive(new KeyPath(new uint[] { 0, index })).Redeem.GetScriptAddress(network).ToString();
-                return address;
+                if(YPUB.StartsWith("Ltub")) {
+                    return ds.Derive(new KeyPath(new uint[] { 0, index })).ScriptPubKey.GetScriptAddress(network).ToString();
+                }
+                else {
+                    return ds.Derive(new KeyPath(new uint[] { 0, index })).Redeem.GetScriptAddress(network).ToString();
+                }
             }
             catch (Exception e) {
                 Exception ex = new Exception($"Unable to generate {CurrencyName} address from YPUB - {YPUB}", e);
