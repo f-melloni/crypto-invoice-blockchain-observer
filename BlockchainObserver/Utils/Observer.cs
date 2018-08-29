@@ -165,7 +165,7 @@ namespace BlockchainObserver.Utils
 
         private static string GetAddressFromYPUB(string YPUB, uint index, Network network)
         {
-            string BTC_YPUB = Regex.Replace(YPUB, @"^Mtub", "ypub"); // Accept litecoin-prefixed format as normal YPUB
+            string BTC_YPUB = Regex.Replace(YPUB, @"^Mtub", "Ltub"); // Accept litecoin-prefixed format as normal YPUB
             
             DerivationStrategyBase ds = null;
             try {
