@@ -28,6 +28,7 @@
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql.Design" Version="1.1.2" />
     <PackageReference Include="RabbitMQ.Client" Version="5.0.1" />
     <PackageReference Include="SharpRaven" Version="2.4.0" />
+    <PackageReference Include="Sentry.AspNetCore" Version="1.0.0-rc" />
   </ItemGroup>
 
   <ItemGroup>
